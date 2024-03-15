@@ -1,7 +1,7 @@
 use std::{
     error::Error,
-    fs,
-    io::{Error as ioe, ErrorKind},
+    fs::{self, File},
+    io::{BufRead, BufReader, Error as ioe, ErrorKind},
     path,
 };
 
@@ -78,46 +78,43 @@ pub fn run(command_line: &CommandLine) -> Result<(), Box<dyn Error>> {
             return Ok(());
         }
     }
-    let content = fs::read_to_string(&command_line.path).unwrap();
+
+    let reader = BufReader::new(fs::File::open(&command_line.path)?);
     if command_line.ignore_case {
-        search_case_insensitive(command_line, &content)
+        search_case_insensitive(command_line, reader)
     } else {
-        search(command_line, &content)
+        search(command_line, reader)
     }
+
     Ok(())
 }
 
-// in lib.rs
-pub fn search(command_line: &CommandLine, content: &str) {
-    // for (i, line) in content.lines().enumerate() {
-    //     if line.contains(&command_line.query_text) {
-    //         println!("{}:{}\n{}", command_line.path, i + 1, line)
-    //     }
-    // }
+pub fn search(command_line: &CommandLine, content: BufReader<File>) {
     content
         .lines()
-        // Enumerate lines
         .enumerate()
-        // Filter lines that contain `revert`
-        .filter(|&(_i, line)| line.contains(&command_line.query_text))
-        // Print lines
-        .for_each(|(i, line)| {
-            println!("{}:{}\n{}", command_line.path, i + 1, line);
+        .filter(|(i, r)| match r {
+            Ok(line) => line.contains(&command_line.query_text),
+            Err(e) => panic!("Read Line Error {}:{}\n{}", command_line.path, i, e),
+        })
+        .for_each(|(i, r)| match r {
+            Ok(line) => println!("{}:{}\n{}", command_line.path, i + 1, line),
+            Err(e) => panic!("Read Line Error {}:{}\n{}", command_line.path, i, e),
         });
 }
 
-// in lib.rs
-pub fn search_case_insensitive(command_line: &CommandLine, content: &str) {
+pub fn search_case_insensitive(command_line: &CommandLine, content: BufReader<File>) {
     let revert = command_line.query_text.to_lowercase();
     content
         .lines()
-        // Enumerate lines
         .enumerate()
-        // Filter lines that contain `revert`
-        .filter(|&(_i, line)| line.to_lowercase().contains(&revert))
-        // Print lines
-        .for_each(|(i, line)| {
-            println!("{}:{}\n{}", command_line.path, i + 1, line);
+        .filter(|(i, r)| match r {
+            Ok(line) => line.to_lowercase().contains(&revert),
+            Err(e) => panic!("Read Line Error {}:{}\n{}", command_line.path, i, e),
+        })
+        .for_each(|(i, r)| match r {
+            Ok(line) => println!("{}:{}\n{}", command_line.path, i + 1, line),
+            Err(e) => panic!("Read Line Error {}:{}\n{}", command_line.path, i, e),
         });
 }
 
@@ -127,7 +124,7 @@ mod test {
 
     #[test]
     fn run_test() {
-        let args = vec!["", "a.txt", "Body", "--ignore_case"];
+        let args = vec!["", "./assert/a.txt", "Body", "--ignore_case"];
         let a = args.iter().map(|i| i.to_string());
         let command_line = CommandLine::new(a).unwrap();
         run(&command_line).unwrap();
